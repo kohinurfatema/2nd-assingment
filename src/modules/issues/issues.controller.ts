@@ -116,3 +116,51 @@ export const getAllIssues = async (
     next(err);
   }
 };
+
+export const getSingleIssue = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const issueResult = await pool.query<IssueRecord>(
+      `SELECT id, title, description, type, status, reporter_id, created_at, updated_at
+       FROM issues WHERE id = $1`,
+      [id]
+    );
+
+    if (issueResult.rows.length === 0) {
+      throw new AppError('Issue not found.', StatusCodes.NOT_FOUND);
+    }
+
+    const issue = issueResult.rows[0];
+
+    const reporterResult = await pool.query<ReporterInfo>(
+      `SELECT id, name, role FROM users WHERE id = $1`,
+      [issue.reporter_id]
+    );
+
+    const reporter = reporterResult.rows[0] ?? {
+      id: issue.reporter_id,
+      name: 'Unknown',
+      role: 'contributor',
+    };
+
+    const issueWithReporter: IssueWithReporter = {
+      id: issue.id,
+      title: issue.title,
+      description: issue.description,
+      type: issue.type,
+      status: issue.status,
+      reporter,
+      created_at: issue.created_at,
+      updated_at: issue.updated_at,
+    };
+
+    sendSuccess(res, StatusCodes.OK, 'Issue retrieved successfully', issueWithReporter);
+  } catch (err) {
+    next(err);
+  }
+};
