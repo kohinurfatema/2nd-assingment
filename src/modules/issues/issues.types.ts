@@ -30,3 +30,10 @@ export interface GetIssuesQuery {
   type?: 'bug' | 'feature_request';
   status?: 'open' | 'in_progress' | 'resolved';
 }
+
+export interface UpdateIssueBody {
+  title?: string;
+  description?: string;
+  type?: 'bug' | 'feature_request';
+  status?: 'open' | 'in_progress' | 'resolved';
+}

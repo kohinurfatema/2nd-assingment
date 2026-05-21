@@ -9,6 +9,7 @@ import {
   IssueWithReporter,
   ReporterInfo,
   GetIssuesQuery,
+  UpdateIssueBody,
 } from './issues.types';
 
 export const createIssue = async (
@@ -160,6 +161,88 @@ export const getSingleIssue = async (
     };
 
     sendSuccess(res, StatusCodes.OK, 'Issue retrieved successfully', issueWithReporter);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateIssue = async (
+  req: Request<{ id: string }, object, UpdateIssueBody>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { title, description, type, status } = req.body;
+    const { role, id: userId } = req.user!;
+
+    const issueResult = await pool.query<IssueRecord>(
+      `SELECT id, title, description, type, status, reporter_id, created_at, updated_at
+       FROM issues WHERE id = $1`,
+      [id]
+    );
+
+    if (issueResult.rows.length === 0) {
+      throw new AppError('Issue not found.', StatusCodes.NOT_FOUND);
+    }
+
+    const issue = issueResult.rows[0];
+
+    if (role === 'contributor') {
+      if (issue.reporter_id !== userId) {
+        throw new AppError('You can only update your own issues.', StatusCodes.FORBIDDEN);
+      }
+      if (issue.status !== 'open') {
+        throw new AppError(
+          'You can only edit issues that are still open.',
+          StatusCodes.CONFLICT
+        );
+      }
+    }
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (title !== undefined) {
+      if (title.length > 150) throw new AppError('Title must not exceed 150 characters.', StatusCodes.BAD_REQUEST);
+      updates.push(`title = $${paramIndex++}`);
+      params.push(title);
+    }
+
+    if (description !== undefined) {
+      if (description.length < 20) throw new AppError('Description must be at least 20 characters.', StatusCodes.BAD_REQUEST);
+      updates.push(`description = $${paramIndex++}`);
+      params.push(description);
+    }
+
+    if (type !== undefined) {
+      if (!['bug', 'feature_request'].includes(type)) throw new AppError('Type must be bug or feature_request.', StatusCodes.BAD_REQUEST);
+      updates.push(`type = $${paramIndex++}`);
+      params.push(type);
+    }
+
+    // Only maintainers can change status
+    if (status !== undefined && role === 'maintainer') {
+      if (!['open', 'in_progress', 'resolved'].includes(status)) {
+        throw new AppError('Status must be open, in_progress, or resolved.', StatusCodes.BAD_REQUEST);
+      }
+      updates.push(`status = $${paramIndex++}`);
+      params.push(status);
+    }
+
+    if (updates.length === 0) {
+      throw new AppError('No valid fields provided to update.', StatusCodes.BAD_REQUEST);
+    }
+
+    params.push(id);
+    const result = await pool.query<IssueRecord>(
+      `UPDATE issues SET ${updates.join(', ')} WHERE id = $${paramIndex}
+       RETURNING id, title, description, type, status, reporter_id, created_at, updated_at`,
+      params
+    );
+
+    sendSuccess(res, StatusCodes.OK, 'Issue updated successfully', result.rows[0]);
   } catch (err) {
     next(err);
   }
