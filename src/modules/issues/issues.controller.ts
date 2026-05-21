@@ -247,3 +247,26 @@ export const updateIssue = async (
     next(err);
   }
 };
+
+export const deleteIssue = async (
+  req: Request<{ id: string }>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM issues WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Issue not found.', StatusCodes.NOT_FOUND);
+    }
+
+    sendSuccess(res, StatusCodes.OK, 'Issue deleted successfully', null);
+  } catch (err) {
+    next(err);
+  }
+};
