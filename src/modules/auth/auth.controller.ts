@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { StatusCodes } from 'http-status-codes';
 import pool from '../../config/database';
 import AppError from '../../utils/AppError';
 import { sendSuccess } from '../../utils/response';
-import { SignupBody, UserRecord } from './auth.types';
+import { SignupBody, LoginBody, UserRecord } from './auth.types';
 
 export const signup = async (
   req: Request<object, object, SignupBody>,
@@ -43,6 +44,51 @@ export const signup = async (
     );
 
     sendSuccess(res, StatusCodes.CREATED, 'User registered successfully', result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const login = async (
+  req: Request<object, object, LoginBody>,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      throw new AppError('Email and password are required.', StatusCodes.BAD_REQUEST);
+    }
+
+    const result = await pool.query<UserRecord & { password: string }>(
+      'SELECT id, name, email, password, role, created_at, updated_at FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Invalid email or password.', StatusCodes.UNAUTHORIZED);
+    }
+
+    const user = result.rows[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      throw new AppError('Invalid email or password.', StatusCodes.UNAUTHORIZED);
+    }
+
+    const token = jwt.sign(
+      { id: user.id, name: user.name, role: user.role },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '7d' }
+    );
+
+    const { password: _, ...userWithoutPassword } = user;
+
+    sendSuccess(res, StatusCodes.OK, 'Login successful', {
+      token,
+      user: userWithoutPassword,
+    });
   } catch (err) {
     next(err);
   }
