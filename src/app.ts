@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import errorHandler from './middleware/errorHandler';
 import authRoutes from './modules/auth/auth.routes';
 import issuesRoutes from './modules/issues/issues.routes';
+import metricsRoutes from './modules/metrics/metrics.routes';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.get('/', (req: Request, res: Response) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/issues', issuesRoutes);
+app.use('/api/metrics', metricsRoutes);
 
 app.use(errorHandler);
 
