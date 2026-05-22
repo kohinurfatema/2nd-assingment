@@ -2,7 +2,7 @@
 
 A collaborative platform for software teams to report bugs, suggest features, and coordinate resolutions.
 
-**Live URL:** https://your-deployment-url.vercel.app
+**Live URL:** https://2nd-assingment.vercel.app
 
 ---
 
